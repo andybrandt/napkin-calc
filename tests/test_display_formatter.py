@@ -33,11 +33,18 @@ class TestFormatValue:
         result = DisplayFormatter.format_value(Decimal("1000"))
         assert "10^3" in result
 
-    def test_decimal_fraction(self) -> None:
+    def test_large_value_rounds_to_whole(self) -> None:
         result = DisplayFormatter.format_value(Decimal("115.7407"))
-        # Should show a reasonable number of decimals, no 10^x
-        assert "115" in result
-        assert "10^" not in result
+        # >= 100 → rounded to whole number
+        assert result == "116"
+
+    def test_small_value_keeps_two_decimals(self) -> None:
+        result = DisplayFormatter.format_value(Decimal("3.1415"))
+        assert result == "3.14"
+
+    def test_small_value_trailing_zeros_stripped(self) -> None:
+        result = DisplayFormatter.format_value(Decimal("7.10"))
+        assert result == "7.1"
 
     def test_billion_annotation(self) -> None:
         result = DisplayFormatter.format_value(Decimal("1000000000"))

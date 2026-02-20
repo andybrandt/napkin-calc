@@ -57,7 +57,8 @@ class ReactiveNumberField(QLineEdit):
         self.setValidator(DecimalValidator(self))
         self.setPlaceholderText(placeholder)
         self.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.setMinimumWidth(160)
+        self.setMinimumWidth(120)
+        self.setMaximumWidth(180)
 
         self.editingFinished.connect(self._on_editing_finished)
 

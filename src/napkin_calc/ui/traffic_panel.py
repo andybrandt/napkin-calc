@@ -1,9 +1,9 @@
 """Traffic & Throughput panel – the first and primary calculator view.
 
-Displays a grid of time-unit rows (Second … Year).  Each row has:
+Displays a grid of time-unit rows (Second ... Year).  Each row has:
 - A label for the time unit.
 - A ``ReactiveNumberField`` where the user can type a rate.
-- A read-only label showing the formatted value with scientific notation.
+- A read-only talking-point label (e.g. "~3.7 billion").
 
 Editing any field recalculates all others via the ``CalculationEngine``.
 """
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from napkin_calc.core.constants import TIME_UNIT_ABBREVIATIONS, TimeUnit
 from napkin_calc.core.engine import CalculationEngine
 from napkin_calc.formatting.display_formatter import DisplayFormatter
+from napkin_calc.formatting.talking_points import TalkingPointGenerator
 from napkin_calc.ui.widgets import ReactiveNumberField
 
 # The order in which time units appear in the grid (top to bottom)
@@ -51,8 +52,10 @@ class TrafficPanel(QWidget):
         super().__init__(parent)
         self._engine = engine
         self._formatter = DisplayFormatter()
+        self._talker = TalkingPointGenerator()
         self._fields: dict[TimeUnit, ReactiveNumberField] = {}
-        self._display_labels: dict[TimeUnit, QLabel] = {}
+        self._notation_labels: dict[TimeUnit, QLabel] = {}
+        self._talking_labels: dict[TimeUnit, QLabel] = {}
         self._is_updating = False
 
         self._build_ui()
@@ -69,8 +72,15 @@ class TrafficPanel(QWidget):
 
         # Column headers
         grid.addWidget(self._header_label("Time Unit"), 0, 0)
-        grid.addWidget(self._header_label("Rate (editable)"), 0, 1)
-        grid.addWidget(self._header_label("Formatted"), 0, 2)
+        grid.addWidget(self._header_label("Rate - events # / unit of time"), 0, 1)
+        grid.addWidget(self._header_label("Scale"), 0, 2)
+        grid.addWidget(self._header_label("Talking Point"), 0, 3)
+
+        # Keep first three columns compact; talking-point column stretches
+        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(1, 0)
+        grid.setColumnStretch(2, 0)
+        grid.setColumnStretch(3, 1)
 
         for row_index, unit in enumerate(_UNIT_ORDER, start=1):
             # Unit label (abbreviated)
@@ -84,13 +94,26 @@ class TrafficPanel(QWidget):
             self._fields[unit] = field
             grid.addWidget(field, row_index, 1)
 
-            # Read-only formatted display (with scientific notation)
-            display_label = QLabel("0")
-            display_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            display_label.setMinimumWidth(200)
-            display_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            self._display_labels[unit] = display_label
-            grid.addWidget(display_label, row_index, 2)
+            # Scientific notation label (e.g. "10^6")
+            notation_label = QLabel("")
+            notation_label.setAlignment(
+                Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            )
+            notation_label.setStyleSheet("font-weight: bold;")
+            self._notation_labels[unit] = notation_label
+            grid.addWidget(notation_label, row_index, 2)
+
+            # Read-only talking-point label
+            talking_label = QLabel("")
+            talking_label.setAlignment(
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            )
+            talking_label.setStyleSheet("font-style: italic;")
+            talking_label.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse
+            )
+            self._talking_labels[unit] = talking_label
+            grid.addWidget(talking_label, row_index, 3)
 
         group.setLayout(grid)
         outer_layout.addWidget(group)
@@ -99,17 +122,15 @@ class TrafficPanel(QWidget):
     @staticmethod
     def _header_label(text: str) -> QLabel:
         label = QLabel(text)
-        label.setStyleSheet("font-weight: bold; color: #555;")
+        label.setStyleSheet("font-weight: bold;")
         return label
 
     # -- signal wiring ------------------------------------------------------
 
     def _connect_signals(self) -> None:
-        # When the user edits any field, push the new rate into the engine
         for unit, field in self._fields.items():
             field.value_changed.connect(partial(self._on_field_edited, unit))
 
-        # When the engine announces a change, refresh all displayed values
         self._engine.rates_changed.connect(self._refresh_all)
         self._engine.mode_changed.connect(self._refresh_all)
 
@@ -133,14 +154,14 @@ class TrafficPanel(QWidget):
                 display_value = self._engine.get_rate(unit)
                 exact_value = self._engine.get_rate_exact(unit)
 
-                # Update the editable field with the exact value (no 10^x)
                 self._fields[unit].set_display_value(
                     self._formatter.format_input(exact_value)
                 )
-
-                # Update the read-only label with mode-aware formatting
-                self._display_labels[unit].setText(
-                    self._formatter.format_value(display_value)
+                self._notation_labels[unit].setText(
+                    self._formatter.scientific_notation(display_value)
+                )
+                self._talking_labels[unit].setText(
+                    self._talker.generate(display_value)
                 )
         finally:
             self._is_updating = False

@@ -13,33 +13,31 @@ from decimal import Decimal, ROUND_HALF_UP
 # Threshold above which we append scientific notation
 _SCIENTIFIC_NOTATION_THRESHOLD = Decimal("1000")
 
-# Maximum decimal places shown for fractional results
-_MAX_DECIMAL_PLACES = 4
+# Values at or above this magnitude are rounded to whole numbers;
+# smaller values keep up to _SMALL_VALUE_DECIMALS fractional digits.
+_WHOLE_NUMBER_THRESHOLD = Decimal("100")
+_SMALL_VALUE_DECIMALS = 2
 
 
 class DisplayFormatter:
     """Stateless formatter – call ``format_value`` on any Decimal."""
 
     @staticmethod
-    def format_value(value: Decimal, max_decimals: int = _MAX_DECIMAL_PLACES) -> str:
+    def format_value(value: Decimal) -> str:
         """Return a human-readable string with optional 10^x annotation.
 
-        Parameters
-        ----------
-        value:
-            The number to format.
-        max_decimals:
-            Maximum fractional digits to show (trailing zeros stripped).
+        Rounding rule: values >= 100 are shown as whole numbers;
+        smaller values keep up to 2 decimal places.
 
         Returns
         -------
         str
-            e.g. ``"1,000,000  (10^6)"`` or ``"0.1157"``.
+            e.g. ``"1,000,000  (10^6)"`` or ``"0.12"``.
         """
         if value == 0:
             return "0"
 
-        rounded = _smart_round(value, max_decimals)
+        rounded = _smart_round(value)
         formatted = _add_thousands_separator(rounded)
         notation = _scientific_notation_suffix(value)
 
@@ -48,29 +46,37 @@ class DisplayFormatter:
         return formatted
 
     @staticmethod
-    def format_input(value: Decimal, max_decimals: int = _MAX_DECIMAL_PLACES) -> str:
+    def format_input(value: Decimal) -> str:
         """Format a value for placing back into an input field (no 10^x)."""
         if value == 0:
             return "0"
-        rounded = _smart_round(value, max_decimals)
+        rounded = _smart_round(value)
         return _add_thousands_separator(rounded)
+
+    @staticmethod
+    def scientific_notation(value: Decimal) -> str:
+        """Return e.g. ``'10^6'`` for large values, or empty string."""
+        return _scientific_notation_suffix(value)
 
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _smart_round(value: Decimal, max_decimals: int) -> Decimal:
-    """Round *value* to at most *max_decimals* fractional digits.
+def _smart_round(value: Decimal) -> Decimal:
+    """Round *value* based on its magnitude.
 
-    Whole numbers are left untouched.  Trailing fractional zeros are
-    stripped so we don't display ``"100.0000"``.
+    - Values >= 100 are rounded to the nearest whole number.
+    - Smaller values keep up to 2 decimal places.
+    Trailing fractional zeros are stripped.
     """
     if value == value.to_integral_value():
         return value.to_integral_value()
 
-    quantize_str = "1." + "0" * max_decimals
-    rounded = value.quantize(Decimal(quantize_str), rounding=ROUND_HALF_UP)
+    if abs(value) >= _WHOLE_NUMBER_THRESHOLD:
+        return value.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+
+    rounded = value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     return rounded.normalize()
 
 
