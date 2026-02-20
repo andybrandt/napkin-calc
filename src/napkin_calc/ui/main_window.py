@@ -30,6 +30,7 @@ from napkin_calc.ui.theme import apply_dark, apply_light, is_dark
 from napkin_calc.ui.traffic_panel import TrafficPanel
 
 _FILE_FILTER = "Napkin Scenarios (*.npkn)"
+_ICON_PATH = Path(__file__).parent.parent / "resources" / "icon.png"
 
 
 class MainWindow(QMainWindow):
@@ -47,6 +48,9 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(self._WINDOW_TITLE)
         self.resize(*self._DEFAULT_SIZE)
+
+        if _ICON_PATH.exists():
+            self.setWindowIcon(QIcon(str(_ICON_PATH)))
 
         self._engine = CalculationEngine(parent=self)
         self._scenario_manager = ScenarioManager(self._engine)
