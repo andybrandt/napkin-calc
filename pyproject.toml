@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "napkin-calc"
+version = "0.1.0"
+description = "Napkin Calculator – a real-time reactive estimation tool for system design interviews"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+keywords = [
+    "system-design",
+    "napkin-math",
+    "calculator",
+    "estimation",
+    "interview",
+    "throughput",
+    "back-of-the-envelope",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Utilities",
+    "Topic :: Software Development",
+]
+dependencies = [
+    "PySide6>=6.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/OWNER/napkin-calc"
+Issues = "https://github.com/OWNER/napkin-calc/issues"
+
+[project.scripts]
+napkin-calc = "napkin_calc.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

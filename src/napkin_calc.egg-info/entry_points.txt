@@ -1,0 +1,2 @@
+[console_scripts]
+napkin-calc = napkin_calc.main:main
