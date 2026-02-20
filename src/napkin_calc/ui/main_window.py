@@ -1,37 +1,43 @@
-"""Application main window – toolbar, tabs, and global controls."""
+"""Application main window – single scrollable layout with all panels."""
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
-    QTabWidget,
     QToolBar,
+    QVBoxLayout,
     QWidget,
 )
 
 from napkin_calc.core.constants import CalculationMode
 from napkin_calc.core.engine import CalculationEngine
+from napkin_calc.ui.data_volume_panel import DataVolumePanel
 from napkin_calc.ui.traffic_panel import TrafficPanel
 
 
 class MainWindow(QMainWindow):
-    """Top-level window for the Napkin Calculator application."""
+    """Top-level window for the Napkin Calculator application.
+
+    All calculator sections are stacked vertically in a single
+    scrollable view so that every value is visible at once during an
+    interview -- no tabs, no hidden panels.
+    """
 
     _WINDOW_TITLE = "Napkin Calculator – System Design Estimator"
-    _DEFAULT_SIZE = (900, 600)
+    _DEFAULT_SIZE = (960, 700)
 
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(self._WINDOW_TITLE)
         self.resize(*self._DEFAULT_SIZE)
 
-        # Shared engine used by all panels
         self._engine = CalculationEngine(parent=self)
 
         self._build_toolbar()
-        self._build_tabs()
+        self._build_central_area()
         self._update_mode_indicator()
 
     # -- toolbar ------------------------------------------------------------
@@ -41,7 +47,6 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
-        # Exact / Estimate toggle button
         self._mode_button = QPushButton()
         self._mode_button.setCheckable(True)
         self._mode_button.setMinimumWidth(160)
@@ -50,17 +55,14 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        # Mode description label
         self._mode_label = QLabel()
-        self._mode_label.setStyleSheet("padding-left: 8px; color: #666;")
+        self._mode_label.setStyleSheet("padding-left: 8px;")
         toolbar.addWidget(self._mode_label)
 
-        # Spacer to push the reset button to the right
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         toolbar.addWidget(spacer)
 
-        # Reset button
         reset_button = QPushButton("Reset All")
         reset_button.clicked.connect(self._on_reset)
         toolbar.addWidget(reset_button)
@@ -86,12 +88,19 @@ class MainWindow(QMainWindow):
     def _on_reset(self) -> None:
         self._engine.reset()
 
-    # -- tabs ---------------------------------------------------------------
+    # -- central area (scrollable stack of all panels) ----------------------
 
-    def _build_tabs(self) -> None:
-        self._tabs = QTabWidget()
-        self.setCentralWidget(self._tabs)
+    def _build_central_area(self) -> None:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setSpacing(12)
 
-        # Phase 1: Traffic panel only
-        traffic_panel = TrafficPanel(self._engine)
-        self._tabs.addTab(traffic_panel, "Traffic && Throughput")
+        layout.addWidget(TrafficPanel(self._engine))
+        layout.addWidget(DataVolumePanel(self._engine))
+
+        layout.addStretch()
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(container)
+        self.setCentralWidget(scroll)

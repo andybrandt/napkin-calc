@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 
+from napkin_calc.core.constants import DataSizeUnit
 from napkin_calc.formatting.talking_points import TalkingPointGenerator
 
 
@@ -58,3 +59,31 @@ class TestTalkingPointGenerator:
     def test_hundred_rounds_to_whole(self) -> None:
         result = TalkingPointGenerator.generate(Decimal("116"))
         assert result == "~116"
+
+
+class TestDataSizeTalkingPoints:
+    """Data-size specific talking points with unit labels."""
+
+    def test_zero(self) -> None:
+        result = TalkingPointGenerator.generate_data_size(Decimal("0"), DataSizeUnit.BYTE)
+        assert result == "0"
+
+    def test_exact_value(self) -> None:
+        result = TalkingPointGenerator.generate_data_size(
+            Decimal("400"), DataSizeUnit.GIGABYTE
+        )
+        assert result == "400 GB"
+
+    def test_approximate_value(self) -> None:
+        result = TalkingPointGenerator.generate_data_size(
+            Decimal("1.53"), DataSizeUnit.PETABYTE
+        )
+        assert "PB" in result
+        assert "1.5" in result
+
+    def test_small_fractional(self) -> None:
+        result = TalkingPointGenerator.generate_data_size(
+            Decimal("4.32"), DataSizeUnit.GIGABYTE
+        )
+        assert "GB" in result
+        assert "4.3" in result

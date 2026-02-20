@@ -3,9 +3,14 @@
 During an interview the candidate needs to speak in rounded magnitudes:
 "about 120 per second", "roughly 3.5 billion per year", etc.
 This module converts a Decimal into that kind of phrase.
+
+Also handles data sizes: given a byte count and unit, produces phrases
+like "~1.5 PB" or "~400 GB".
 """
 
 from decimal import Decimal, ROUND_HALF_UP
+
+from napkin_calc.core.constants import DataSizeUnit
 
 
 # Magnitude tiers ordered from largest to smallest so we match the
@@ -22,6 +27,38 @@ _MAGNITUDE_TIERS: list[tuple[Decimal, str]] = [
 
 class TalkingPointGenerator:
     """Convert a numeric value into an interview-friendly phrase."""
+
+    @staticmethod
+    def generate_data_size(value: Decimal, unit: DataSizeUnit) -> str:
+        """Return a speakable string for a data size.
+
+        Parameters
+        ----------
+        value :
+            The numeric amount (already in *unit*).
+        unit :
+            The data-size unit (B, KB, MB, ...).
+
+        Examples
+        --------
+        >>> TalkingPointGenerator.generate_data_size(Decimal("1.5"), DataSizeUnit.PETABYTE)
+        '~1.5 PB'
+        >>> TalkingPointGenerator.generate_data_size(Decimal("400"), DataSizeUnit.GIGABYTE)
+        '~400 GB'
+        """
+        if value == 0:
+            return "0"
+
+        rounded = value.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+
+        if rounded == rounded.to_integral_value():
+            int_value = int(rounded)
+            if value == rounded:
+                return f"{int_value} {unit.value}"
+            return f"~{int_value} {unit.value}"
+
+        display = f"{rounded.normalize()}"
+        return f"~{display} {unit.value}"
 
     @staticmethod
     def generate(value: Decimal) -> str:

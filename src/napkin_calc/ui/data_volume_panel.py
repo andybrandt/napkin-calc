@@ -1,0 +1,235 @@
+"""Data Volume panel – payload size input and storage throughput display.
+
+Sits below the Traffic panel in the single-window layout.  Shows:
+- An editable payload-size field with a unit selector (B / KB / MB / GB).
+- A grid of data throughput per time unit, auto-selecting the best
+  data-size unit for each row, with talking points.
+"""
+
+from decimal import Decimal, InvalidOperation
+from functools import partial
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QComboBox,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QVBoxLayout,
+    QWidget,
+)
+
+from napkin_calc.core.constants import (
+    TIME_UNIT_ABBREVIATIONS,
+    DataSizeUnit,
+    TimeUnit,
+)
+from napkin_calc.core.engine import CalculationEngine
+from napkin_calc.formatting.display_formatter import DisplayFormatter
+from napkin_calc.formatting.talking_points import TalkingPointGenerator
+from napkin_calc.ui.widgets import ReactiveNumberField
+
+# Time units displayed in the throughput grid
+_TIME_UNIT_ORDER = [
+    TimeUnit.SECOND,
+    TimeUnit.MINUTE,
+    TimeUnit.HOUR,
+    TimeUnit.DAY,
+    TimeUnit.MONTH,
+    TimeUnit.YEAR,
+]
+
+# Data-size units offered in the payload-size dropdown
+_PAYLOAD_UNITS = [
+    DataSizeUnit.BYTE,
+    DataSizeUnit.KILOBYTE,
+    DataSizeUnit.MEGABYTE,
+    DataSizeUnit.GIGABYTE,
+]
+
+
+class DataVolumePanel(QWidget):
+    """Payload-size input + data-throughput display.
+
+    Parameters
+    ----------
+    engine :
+        The shared ``CalculationEngine`` instance.
+    parent :
+        Optional parent widget.
+    """
+
+    def __init__(self, engine: CalculationEngine, parent=None) -> None:
+        super().__init__(parent)
+        self._engine = engine
+        self._formatter = DisplayFormatter()
+        self._talker = TalkingPointGenerator()
+
+        self._throughput_value_labels: dict[TimeUnit, QLabel] = {}
+        self._throughput_notation_labels: dict[TimeUnit, QLabel] = {}
+        self._throughput_talking_labels: dict[TimeUnit, QLabel] = {}
+        self._is_updating = False
+
+        self._build_ui()
+        self._connect_signals()
+
+    # -- UI construction ----------------------------------------------------
+
+    def _build_ui(self) -> None:
+        outer_layout = QVBoxLayout(self)
+
+        # --- Payload size input row ----------------------------------------
+        payload_group = QGroupBox("Data Volume  (per-event payload size)")
+        payload_layout = QHBoxLayout()
+
+        payload_layout.addWidget(QLabel("Payload size per event:"))
+
+        self._payload_field = ReactiveNumberField(placeholder="e.g. 400")
+        payload_layout.addWidget(self._payload_field)
+
+        self._payload_unit_combo = QComboBox()
+        for unit in _PAYLOAD_UNITS:
+            self._payload_unit_combo.addItem(unit.value, unit)
+        # Default to KB
+        self._payload_unit_combo.setCurrentIndex(1)
+        payload_layout.addWidget(self._payload_unit_combo)
+
+        payload_layout.addStretch()
+        payload_group.setLayout(payload_layout)
+        outer_layout.addWidget(payload_group)
+
+        # --- Data throughput grid ------------------------------------------
+        throughput_group = QGroupBox(
+            "Data Throughput  (rate x payload = data per time unit)"
+        )
+        grid = QGridLayout()
+        grid.setSpacing(8)
+
+        # Column headers
+        grid.addWidget(self._header_label("Time Unit"), 0, 0)
+        grid.addWidget(self._header_label("Data Volume"), 0, 1)
+        grid.addWidget(self._header_label("Scale"), 0, 2)
+        grid.addWidget(self._header_label("Talking Point"), 0, 3)
+
+        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(1, 0)
+        grid.setColumnStretch(2, 0)
+        grid.setColumnStretch(3, 1)
+
+        for row_index, time_unit in enumerate(_TIME_UNIT_ORDER, start=1):
+            abbreviation = TIME_UNIT_ABBREVIATIONS[time_unit]
+            unit_label = QLabel(f"per {abbreviation}")
+            unit_label.setStyleSheet("font-weight: bold;")
+            grid.addWidget(unit_label, row_index, 0)
+
+            # Data volume value (read-only)
+            value_label = QLabel("")
+            value_label.setAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
+            value_label.setMinimumWidth(140)
+            value_label.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse
+            )
+            self._throughput_value_labels[time_unit] = value_label
+            grid.addWidget(value_label, row_index, 1)
+
+            # Scientific notation
+            notation_label = QLabel("")
+            notation_label.setAlignment(
+                Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            )
+            notation_label.setStyleSheet("font-weight: bold;")
+            self._throughput_notation_labels[time_unit] = notation_label
+            grid.addWidget(notation_label, row_index, 2)
+
+            # Talking point
+            talking_label = QLabel("")
+            talking_label.setAlignment(
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+            )
+            talking_label.setStyleSheet("font-style: italic;")
+            talking_label.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse
+            )
+            self._throughput_talking_labels[time_unit] = talking_label
+            grid.addWidget(talking_label, row_index, 3)
+
+        throughput_group.setLayout(grid)
+        outer_layout.addWidget(throughput_group)
+
+    @staticmethod
+    def _header_label(text: str) -> QLabel:
+        label = QLabel(text)
+        label.setStyleSheet("font-weight: bold;")
+        return label
+
+    # -- signal wiring ------------------------------------------------------
+
+    def _connect_signals(self) -> None:
+        self._payload_field.value_changed.connect(self._on_payload_edited)
+        self._payload_unit_combo.currentIndexChanged.connect(
+            self._on_payload_unit_changed
+        )
+
+        self._engine.storage_changed.connect(self._refresh_throughput)
+        self._engine.mode_changed.connect(self._refresh_throughput)
+
+    def _on_payload_edited(self, value: Decimal) -> None:
+        """User typed a new payload size."""
+        if self._is_updating:
+            return
+        unit = self._payload_unit_combo.currentData()
+        self._engine.set_payload_size(value, unit)
+
+    def _on_payload_unit_changed(self) -> None:
+        """User changed the payload-size unit dropdown.
+
+        Re-push the current field value with the new unit so the engine
+        recalculates.
+        """
+        text = self._payload_field.text().strip().replace(",", "")
+        if not text:
+            return
+        try:
+            value = Decimal(text)
+        except InvalidOperation:
+            return
+        unit = self._payload_unit_combo.currentData()
+        self._engine.set_payload_size(value, unit)
+
+    # -- display refresh ----------------------------------------------------
+
+    def _refresh_throughput(self) -> None:
+        """Recompute all data-throughput rows from engine state."""
+        self._is_updating = True
+        try:
+            for time_unit in _TIME_UNIT_ORDER:
+                value, best_unit = self._engine.get_data_throughput_best_unit(
+                    time_unit
+                )
+                total_bytes = self._engine.get_data_throughput_bytes(time_unit)
+
+                # Value with auto-selected unit
+                display_text = (
+                    f"{self._formatter.format_input(value)} {best_unit.value}"
+                    if total_bytes > 0
+                    else ""
+                )
+                self._throughput_value_labels[time_unit].setText(display_text)
+
+                # Scientific notation on the raw byte count
+                self._throughput_notation_labels[time_unit].setText(
+                    self._formatter.scientific_notation(total_bytes)
+                )
+
+                # Talking point
+                talking = (
+                    self._talker.generate_data_size(value, best_unit)
+                    if total_bytes > 0
+                    else ""
+                )
+                self._throughput_talking_labels[time_unit].setText(talking)
+        finally:
+            self._is_updating = False

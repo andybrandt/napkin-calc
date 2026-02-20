@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pytest
 
-from napkin_calc.core.constants import CalculationMode, TimeUnit
+from napkin_calc.core.constants import CalculationMode, DataSizeUnit, TimeUnit
 from napkin_calc.core.engine import CalculationEngine
 
 
@@ -79,6 +79,65 @@ class TestRateOperations:
         self, engine: CalculationEngine
     ) -> None:
         engine.set_rate(Decimal("1"), TimeUnit.SECOND)
-        # Even though display_mode is ESTIMATE, get_rate_exact uses EXACT
         exact_month = engine.get_rate_exact(TimeUnit.MONTH)
         assert exact_month == Decimal("2629800")
+
+    def test_set_rate_also_fires_storage_changed(
+        self, engine: CalculationEngine
+    ) -> None:
+        signal_received = []
+        engine.storage_changed.connect(lambda: signal_received.append(True))
+        engine.set_rate(Decimal("100"), TimeUnit.SECOND)
+        assert len(signal_received) == 1
+
+
+class TestPayloadAndStorage:
+    """Payload size and data throughput calculations."""
+
+    def test_set_payload_size_in_kb(self, engine: CalculationEngine) -> None:
+        engine.set_payload_size(Decimal("1"), DataSizeUnit.KILOBYTE)
+        assert engine.payload_size_bytes == Decimal("1024")
+
+    def test_storage_changed_signal_on_payload(
+        self, engine: CalculationEngine
+    ) -> None:
+        signal_received = []
+        engine.storage_changed.connect(lambda: signal_received.append(True))
+        engine.set_payload_size(Decimal("500"), DataSizeUnit.BYTE)
+        assert len(signal_received) == 1
+
+    def test_data_throughput_bytes_per_second(
+        self, engine: CalculationEngine
+    ) -> None:
+        engine.set_rate(Decimal("100"), TimeUnit.SECOND)
+        engine.set_payload_size(Decimal("500"), DataSizeUnit.BYTE)
+        # 100 events/sec * 500 bytes = 50,000 bytes/sec
+        assert engine.data_throughput_bytes_per_second == Decimal("50000")
+
+    def test_data_throughput_per_day(self, engine: CalculationEngine) -> None:
+        engine.set_rate(Decimal("100"), TimeUnit.SECOND)
+        engine.set_payload_size(Decimal("500"), DataSizeUnit.BYTE)
+        # 50,000 B/sec * 86,400 sec/day (estimate) = 4,320,000,000 B/day
+        bytes_per_day = engine.get_data_throughput_bytes(TimeUnit.DAY)
+        assert bytes_per_day == Decimal("4320000000")
+
+    def test_data_throughput_in_gb(self, engine: CalculationEngine) -> None:
+        engine.set_rate(Decimal("100"), TimeUnit.SECOND)
+        engine.set_payload_size(Decimal("500"), DataSizeUnit.BYTE)
+        gb_per_day = engine.get_data_throughput(TimeUnit.DAY, DataSizeUnit.GIGABYTE)
+        # 4,320,000,000 / 1,000,000,000 = 4.32 GB (estimate mode)
+        assert abs(gb_per_day - Decimal("4.32")) < Decimal("0.01")
+
+    def test_best_unit_selection(self, engine: CalculationEngine) -> None:
+        engine.set_rate(Decimal("100"), TimeUnit.SECOND)
+        engine.set_payload_size(Decimal("500"), DataSizeUnit.BYTE)
+        value, unit = engine.get_data_throughput_best_unit(TimeUnit.DAY)
+        # ~4.32 GB/day → best unit should be GB
+        assert unit == DataSizeUnit.GIGABYTE
+        assert abs(value - Decimal("4.32")) < Decimal("0.01")
+
+    def test_reset_clears_payload(self, engine: CalculationEngine) -> None:
+        engine.set_payload_size(Decimal("1"), DataSizeUnit.MEGABYTE)
+        engine.reset()
+        assert engine.payload_size_bytes == Decimal("0")
+        assert engine.data_throughput_bytes_per_second == Decimal("0")
