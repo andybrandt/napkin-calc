@@ -95,3 +95,11 @@ local_settings.py
 
 # PEP 582 (used by some tools)
 __pypackages__/
+
+# Nuitka build artifacts
+*.build/
+*.dist/
+*.onefile-build/
+napkin-calc
+napkin-calc.exe
+napkin-calc.bin
