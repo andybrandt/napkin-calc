@@ -23,12 +23,13 @@ from PySide6.QtWidgets import (
 from napkin_calc.core.constants import (
     TIME_UNIT_ABBREVIATIONS,
     DataSizeUnit,
+    LockedVariable,
     TimeUnit,
 )
 from napkin_calc.core.engine import CalculationEngine
 from napkin_calc.formatting.display_formatter import DisplayFormatter
 from napkin_calc.formatting.talking_points import TalkingPointGenerator
-from napkin_calc.ui.widgets import ReactiveNumberField
+from napkin_calc.ui.widgets import LockButton, ReactiveNumberField
 
 # Time units displayed in the throughput grid
 _TIME_UNIT_ORDER = [
@@ -79,41 +80,51 @@ class DataVolumePanel(QWidget):
     def _build_ui(self) -> None:
         outer_layout = QVBoxLayout(self)
 
-        # --- Payload size input row ----------------------------------------
-        payload_group = QGroupBox("Data Volume  (per-event payload size)")
+        # --- Payload + Target input section --------------------------------
+        payload_group = QGroupBox("Data Volume")
         payload_layout = QGridLayout()
 
-        payload_layout.addWidget(QLabel("Payload size per event:"), 0, 0)
+        # Payload row: lock | label | field | unit
+        self._payload_lock = LockButton()
+        self._payload_lock.setChecked(
+            self._engine.locked_variable == LockedVariable.PAYLOAD
+        )
+        payload_layout.addWidget(self._payload_lock, 0, 0)
+        payload_layout.addWidget(QLabel("Payload size per event:"), 0, 1)
 
         self._payload_field = ReactiveNumberField(placeholder="e.g. 400")
-        payload_layout.addWidget(self._payload_field, 0, 1)
+        payload_layout.addWidget(self._payload_field, 0, 2)
 
         self._payload_unit_combo = QComboBox()
         for unit in _PAYLOAD_UNITS:
             self._payload_unit_combo.addItem(unit.value, unit)
-        # Default to KB
-        self._payload_unit_combo.setCurrentIndex(1)
-        payload_layout.addWidget(self._payload_unit_combo, 0, 2)
+        self._payload_unit_combo.setCurrentIndex(1)  # Default to KB
+        payload_layout.addWidget(self._payload_unit_combo, 0, 3)
 
-        # Target Total Volume row
-        payload_layout.addWidget(QLabel("Target Total Volume:"), 1, 0)
-        
+        # Target Total Volume row: lock | label | field | size unit | time unit
+        self._volume_lock = LockButton()
+        self._volume_lock.setChecked(
+            self._engine.locked_variable == LockedVariable.VOLUME
+        )
+        payload_layout.addWidget(self._volume_lock, 1, 0)
+        payload_layout.addWidget(QLabel("Target Total Volume:"), 1, 1)
+
         self._target_field = ReactiveNumberField(placeholder="e.g. 1")
-        payload_layout.addWidget(self._target_field, 1, 1)
-        
+        payload_layout.addWidget(self._target_field, 1, 2)
+
         self._target_size_unit_combo = QComboBox()
         for unit in DataSizeUnit:
             self._target_size_unit_combo.addItem(unit.value, unit)
-        self._target_size_unit_combo.setCurrentIndex(4) # TB
-        payload_layout.addWidget(self._target_size_unit_combo, 1, 2)
-        
+        self._target_size_unit_combo.setCurrentIndex(4)  # TB
+        payload_layout.addWidget(self._target_size_unit_combo, 1, 3)
+
         self._target_time_unit_combo = QComboBox()
         for time_unit in _TIME_UNIT_ORDER:
             self._target_time_unit_combo.addItem(f"per {time_unit.value}", time_unit)
-        self._target_time_unit_combo.setCurrentIndex(3) # Day
-        payload_layout.addWidget(self._target_time_unit_combo, 1, 3)
+        self._target_time_unit_combo.setCurrentIndex(3)  # Day
+        payload_layout.addWidget(self._target_time_unit_combo, 1, 4)
 
-        payload_layout.setColumnStretch(4, 1) # Push to left
+        payload_layout.setColumnStretch(5, 1)
 
         payload_group.setLayout(payload_layout)
         outer_layout.addWidget(payload_group)
@@ -207,8 +218,24 @@ class DataVolumePanel(QWidget):
             self._on_target_unit_changed
         )
 
+        self._payload_lock.clicked.connect(self._on_payload_lock_clicked)
+        self._volume_lock.clicked.connect(self._on_volume_lock_clicked)
+        self._engine.lock_changed.connect(self._sync_lock_buttons)
+
         self._engine.storage_changed.connect(self._refresh_all)
         self._engine.mode_changed.connect(self._refresh_all)
+
+    def _on_payload_lock_clicked(self) -> None:
+        self._engine.set_locked_variable(LockedVariable.PAYLOAD)
+
+    def _on_volume_lock_clicked(self) -> None:
+        self._engine.set_locked_variable(LockedVariable.VOLUME)
+
+    def _sync_lock_buttons(self) -> None:
+        """Keep lock buttons in sync when another panel changes the lock."""
+        locked = self._engine.locked_variable
+        self._payload_lock.setChecked(locked == LockedVariable.PAYLOAD)
+        self._volume_lock.setChecked(locked == LockedVariable.VOLUME)
 
     def _on_payload_edited(self, value: Decimal) -> None:
         """User typed a new payload size."""

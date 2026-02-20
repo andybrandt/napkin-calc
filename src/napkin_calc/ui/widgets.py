@@ -11,7 +11,7 @@ from decimal import Decimal, InvalidOperation
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QValidator
-from PySide6.QtWidgets import QLineEdit
+from PySide6.QtWidgets import QLineEdit, QToolButton
 
 
 class DecimalValidator(QValidator):
@@ -84,3 +84,31 @@ class ReactiveNumberField(QLineEdit):
         except InvalidOperation:
             return
         self.value_changed.emit(value)
+
+
+_LOCKED_TEXT = "\U0001f512"   # closed padlock
+_UNLOCKED_TEXT = "\U0001f513"  # open padlock
+
+
+class LockButton(QToolButton):
+    """Toggle button that shows a padlock glyph.
+
+    Emits ``toggled(bool)`` -- True means this variable should be locked.
+    Uses emoji padlock characters that render with their own color on
+    all platforms and are visible on any background.
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setCheckable(True)
+        self.setToolTip("Click to hold this value constant")
+        self._refresh_text()
+        self.toggled.connect(self._refresh_text)
+
+    def _refresh_text(self, *_args) -> None:
+        if self.isChecked():
+            self.setText(_LOCKED_TEXT)
+            self.setToolTip("This value is held constant")
+        else:
+            self.setText(_UNLOCKED_TEXT)
+            self.setToolTip("Click to hold this value constant")

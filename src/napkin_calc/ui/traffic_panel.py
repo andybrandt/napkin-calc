@@ -15,16 +15,17 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QVBoxLayout,
     QWidget,
 )
 
-from napkin_calc.core.constants import TIME_UNIT_ABBREVIATIONS, TimeUnit
+from napkin_calc.core.constants import TIME_UNIT_ABBREVIATIONS, LockedVariable, TimeUnit
 from napkin_calc.core.engine import CalculationEngine
 from napkin_calc.formatting.display_formatter import DisplayFormatter
 from napkin_calc.formatting.talking_points import TalkingPointGenerator
-from napkin_calc.ui.widgets import ReactiveNumberField
+from napkin_calc.ui.widgets import LockButton, ReactiveNumberField
 
 # The order in which time units appear in the grid (top to bottom)
 _UNIT_ORDER = [
@@ -67,6 +68,21 @@ class TrafficPanel(QWidget):
         outer_layout = QVBoxLayout(self)
 
         group = QGroupBox("Traffic / Throughput  (events per time unit)")
+
+        # Lock button for the Rate variable
+        self._lock_button = LockButton()
+        self._lock_button.setChecked(
+            self._engine.locked_variable == LockedVariable.RATE
+        )
+
+        group_layout = QVBoxLayout()
+
+        lock_row = QHBoxLayout()
+        lock_row.addWidget(self._lock_button)
+        lock_row.addWidget(QLabel("Hold Rate constant"))
+        lock_row.addStretch()
+        group_layout.addLayout(lock_row)
+
         grid = QGridLayout()
         grid.setSpacing(8)
 
@@ -121,7 +137,8 @@ class TrafficPanel(QWidget):
             self._talking_labels[unit] = talking_label
             grid.addWidget(talking_label, row_index, 3)
 
-        group.setLayout(grid)
+        group_layout.addLayout(grid)
+        group.setLayout(group_layout)
         outer_layout.addWidget(group)
         outer_layout.addStretch()
 
@@ -139,8 +156,20 @@ class TrafficPanel(QWidget):
         for unit, field in self._fields.items():
             field.value_changed.connect(partial(self._on_field_edited, unit))
 
+        self._lock_button.clicked.connect(self._on_lock_clicked)
+        self._engine.lock_changed.connect(self._sync_lock_button)
+
         self._engine.rates_changed.connect(self._refresh_all)
         self._engine.mode_changed.connect(self._refresh_all)
+
+    def _on_lock_clicked(self) -> None:
+        self._engine.set_locked_variable(LockedVariable.RATE)
+
+    def _sync_lock_button(self) -> None:
+        """Keep this lock button in sync when another panel changes the lock."""
+        self._lock_button.setChecked(
+            self._engine.locked_variable == LockedVariable.RATE
+        )
 
     def _on_field_edited(self, unit: TimeUnit, value: Decimal) -> None:
         """User changed a rate field – push into the engine."""

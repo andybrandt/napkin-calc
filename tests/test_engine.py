@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pytest
 
-from napkin_calc.core.constants import CalculationMode, DataSizeUnit, TimeUnit
+from napkin_calc.core.constants import CalculationMode, DataSizeUnit, LockedVariable, TimeUnit
 from napkin_calc.core.engine import CalculationEngine
 
 
@@ -142,52 +142,58 @@ class TestPayloadAndStorage:
         assert engine.payload_size_bytes == Decimal("0")
         assert engine.data_throughput_bytes_per_second == Decimal("0")
 
-    def test_target_throughput_updates_payload_when_rate_nonzero(self, engine: CalculationEngine) -> None:
+    def test_target_with_rate_locked_solves_payload(self, engine: CalculationEngine) -> None:
+        """Lock Rate, set rate, enter target -> Payload is back-calculated."""
+        engine.set_locked_variable(LockedVariable.RATE)
         engine.set_rate(Decimal("100"), TimeUnit.SECOND)
         engine.set_target_throughput(Decimal("50"), DataSizeUnit.KILOBYTE, TimeUnit.SECOND)
-        # Payload = (50 * 1024) / 100 = 512 bytes
         assert engine.payload_size_bytes == Decimal("512")
         assert engine.events_per_second_exact == Decimal("100")
 
-    def test_target_throughput_updates_rate_when_rate_zero_and_payload_nonzero(self, engine: CalculationEngine) -> None:
+    def test_target_with_payload_locked_solves_rate(self, engine: CalculationEngine) -> None:
+        """Lock Payload, set payload, enter target -> Rate is back-calculated."""
+        engine.set_locked_variable(LockedVariable.PAYLOAD)
         engine.set_payload_size(Decimal("500"), DataSizeUnit.BYTE)
         engine.set_target_throughput(Decimal("50"), DataSizeUnit.KILOBYTE, TimeUnit.SECOND)
-        # Rate = (50 * 1024) / 500 = 102.4 events/sec
         assert engine.events_per_second_exact == Decimal("102.4")
         assert engine.payload_size_bytes == Decimal("500")
 
-    def test_target_stored_as_pending_when_both_zero(self, engine: CalculationEngine) -> None:
-        """Neither rate nor payload are known -- target is stored, not resolved."""
+    def test_target_stored_when_both_zero(self, engine: CalculationEngine) -> None:
+        """Neither rate nor payload known -- target stored for later."""
         engine.set_target_throughput(Decimal("1"), DataSizeUnit.KILOBYTE, TimeUnit.SECOND)
-        # Nothing solved yet
         assert engine.events_per_second_exact == Decimal("0")
         assert engine.payload_size_bytes == Decimal("0")
         assert engine.pending_target_bytes_per_second == Decimal("1024")
 
-    def test_pending_target_resolves_when_rate_provided(self, engine: CalculationEngine) -> None:
-        """Pending target + user enters rate -> payload is calculated."""
+    def test_stored_target_resolves_when_rate_provided(self, engine: CalculationEngine) -> None:
+        """Stored target + user enters rate -> payload is calculated (default lock=VOLUME)."""
         engine.set_target_throughput(Decimal("50"), DataSizeUnit.KILOBYTE, TimeUnit.SECOND)
-        assert engine.pending_target_bytes_per_second != Decimal("0")
-        # Now user enters 100 events/sec
         engine.set_rate(Decimal("100"), TimeUnit.SECOND)
-        # Payload = (50 * 1024) / 100 = 512 bytes
+        # Volume locked (default), rate just set, so payload = 51200 / 100 = 512
         assert engine.payload_size_bytes == Decimal("512")
-        assert engine.pending_target_bytes_per_second == Decimal("0")
 
-    def test_pending_target_resolves_when_payload_provided(self, engine: CalculationEngine) -> None:
-        """Pending target + user enters payload -> rate is calculated."""
+    def test_stored_target_resolves_when_payload_provided(self, engine: CalculationEngine) -> None:
+        """Stored target + lock Payload + user enters payload -> rate calculated."""
+        engine.set_locked_variable(LockedVariable.PAYLOAD)
         engine.set_target_throughput(Decimal("50"), DataSizeUnit.KILOBYTE, TimeUnit.SECOND)
-        assert engine.pending_target_bytes_per_second != Decimal("0")
-        # Now user enters 500 bytes per event
         engine.set_payload_size(Decimal("500"), DataSizeUnit.BYTE)
-        # Rate = (50 * 1024) / 500 = 102.4 events/sec
+        # Payload locked, so rate = 51200 / 500 = 102.4
         assert engine.events_per_second_exact == Decimal("102.4")
-        assert engine.pending_target_bytes_per_second == Decimal("0")
 
-    def test_throughput_grid_shows_target_while_pending(self, engine: CalculationEngine) -> None:
+    def test_throughput_grid_shows_target_while_unresolved(self, engine: CalculationEngine) -> None:
         """Data throughput should reflect the target even before resolution."""
         engine.set_target_throughput(Decimal("1"), DataSizeUnit.TERABYTE, TimeUnit.DAY)
         bytes_per_day = engine.get_data_throughput_bytes(TimeUnit.DAY)
-        # 1 TB (exact) = 1,099,511,627,776 bytes; per day (exact) = 86400 sec
-        # BPS = 1,099,511,627,776 / 86400; bytes_per_day = BPS * 86400 = 1,099,511,627,776
         assert bytes_per_day == Decimal("1099511627776")
+
+    def test_volume_locked_edit_rate_recalculates_payload(self, engine: CalculationEngine) -> None:
+        """Lock=Volume, set all three, then change rate -> payload adjusts."""
+        engine.set_rate(Decimal("100"), TimeUnit.SECOND)
+        engine.set_payload_size(Decimal("500"), DataSizeUnit.BYTE)
+        # Store the volume: 100 * 500 = 50000 bps
+        engine.set_target_throughput(Decimal("50000"), DataSizeUnit.BYTE, TimeUnit.SECOND)
+        # Now change rate to 200 with Volume locked
+        engine.set_rate(Decimal("200"), TimeUnit.SECOND)
+        # Payload should adjust: 50000 / 200 = 250
+        assert engine.payload_size_bytes == Decimal("250")
+        assert engine.events_per_second_exact == Decimal("200")

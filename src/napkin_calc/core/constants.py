@@ -50,6 +50,13 @@ class BandwidthUnit(Enum):
     TBPS = "Tbps"
 
 
+class LockedVariable(Enum):
+    """Which variable is held constant when the other two change."""
+    RATE = "rate"
+    PAYLOAD = "payload"
+    VOLUME = "volume"
+
+
 class CalculationMode(Enum):
     """Controls how values are *displayed* (engine always stores exact)."""
     EXACT = "exact"
