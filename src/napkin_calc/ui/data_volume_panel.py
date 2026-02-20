@@ -120,7 +120,9 @@ class DataVolumePanel(QWidget):
         for row_index, time_unit in enumerate(_TIME_UNIT_ORDER, start=1):
             abbreviation = TIME_UNIT_ABBREVIATIONS[time_unit]
             unit_label = QLabel(f"per {abbreviation}")
-            unit_label.setStyleSheet("font-weight: bold;")
+            font = unit_label.font()
+            font.setBold(True)
+            unit_label.setFont(font)
             grid.addWidget(unit_label, row_index, 0)
 
             # Data volume value (read-only)
@@ -140,7 +142,9 @@ class DataVolumePanel(QWidget):
             notation_label.setAlignment(
                 Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
             )
-            notation_label.setStyleSheet("font-weight: bold;")
+            font = notation_label.font()
+            font.setBold(True)
+            notation_label.setFont(font)
             self._throughput_notation_labels[time_unit] = notation_label
             grid.addWidget(notation_label, row_index, 2)
 
@@ -149,7 +153,9 @@ class DataVolumePanel(QWidget):
             talking_label.setAlignment(
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
             )
-            talking_label.setStyleSheet("font-style: italic;")
+            font = talking_label.font()
+            font.setItalic(True)
+            talking_label.setFont(font)
             talking_label.setTextInteractionFlags(
                 Qt.TextInteractionFlag.TextSelectableByMouse
             )
@@ -162,7 +168,9 @@ class DataVolumePanel(QWidget):
     @staticmethod
     def _header_label(text: str) -> QLabel:
         label = QLabel(text)
-        label.setStyleSheet("font-weight: bold;")
+        font = label.font()
+        font.setBold(True)
+        label.setFont(font)
         return label
 
     # -- signal wiring ------------------------------------------------------
@@ -173,8 +181,8 @@ class DataVolumePanel(QWidget):
             self._on_payload_unit_changed
         )
 
-        self._engine.storage_changed.connect(self._refresh_throughput)
-        self._engine.mode_changed.connect(self._refresh_throughput)
+        self._engine.storage_changed.connect(self._refresh_all)
+        self._engine.mode_changed.connect(self._refresh_all)
 
     def _on_payload_edited(self, value: Decimal) -> None:
         """User typed a new payload size."""
@@ -201,10 +209,14 @@ class DataVolumePanel(QWidget):
 
     # -- display refresh ----------------------------------------------------
 
-    def _refresh_throughput(self) -> None:
-        """Recompute all data-throughput rows from engine state."""
+    def _refresh_all(self) -> None:
+        """Refresh the payload field and all throughput rows from engine state."""
         self._is_updating = True
         try:
+            # Clear or restore the payload input field
+            if self._engine.payload_size_bytes == 0:
+                self._payload_field.set_display_value("")
+                self._payload_unit_combo.setCurrentIndex(1)  # default to KB
             for time_unit in _TIME_UNIT_ORDER:
                 value, best_unit = self._engine.get_data_throughput_best_unit(
                     time_unit

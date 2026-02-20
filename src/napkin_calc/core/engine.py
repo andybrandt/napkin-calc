@@ -51,7 +51,7 @@ class CalculationEngine(QObject):
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._time_converter = TimeUnitConverter()
-        self._display_mode = CalculationMode.ESTIMATE
+        self._display_mode = CalculationMode.EXACT
 
         # Payload size per event (canonical: bytes, exact)
         self._payload_size_bytes = Decimal("0")

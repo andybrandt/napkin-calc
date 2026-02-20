@@ -86,7 +86,9 @@ class TrafficPanel(QWidget):
             # Unit label (abbreviated)
             abbreviation = TIME_UNIT_ABBREVIATIONS[unit]
             unit_label = QLabel(f"per {abbreviation}")
-            unit_label.setStyleSheet("font-weight: bold;")
+            font = unit_label.font()
+            font.setBold(True)
+            unit_label.setFont(font)
             grid.addWidget(unit_label, row_index, 0)
 
             # Editable numeric field
@@ -99,7 +101,9 @@ class TrafficPanel(QWidget):
             notation_label.setAlignment(
                 Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
             )
-            notation_label.setStyleSheet("font-weight: bold;")
+            font = notation_label.font()
+            font.setBold(True)
+            notation_label.setFont(font)
             self._notation_labels[unit] = notation_label
             grid.addWidget(notation_label, row_index, 2)
 
@@ -108,7 +112,9 @@ class TrafficPanel(QWidget):
             talking_label.setAlignment(
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
             )
-            talking_label.setStyleSheet("font-style: italic;")
+            font = talking_label.font()
+            font.setItalic(True)
+            talking_label.setFont(font)
             talking_label.setTextInteractionFlags(
                 Qt.TextInteractionFlag.TextSelectableByMouse
             )
@@ -122,7 +128,9 @@ class TrafficPanel(QWidget):
     @staticmethod
     def _header_label(text: str) -> QLabel:
         label = QLabel(text)
-        label.setStyleSheet("font-weight: bold;")
+        font = label.font()
+        font.setBold(True)
+        label.setFont(font)
         return label
 
     # -- signal wiring ------------------------------------------------------

@@ -32,17 +32,17 @@ def engine(qapp) -> CalculationEngine:
 
 
 class TestDisplayMode:
-    def test_default_mode_is_estimate(self, engine: CalculationEngine) -> None:
-        assert engine.display_mode == CalculationMode.ESTIMATE
-
-    def test_toggle_switches_to_exact(self, engine: CalculationEngine) -> None:
-        engine.toggle_display_mode()
+    def test_default_mode_is_exact(self, engine: CalculationEngine) -> None:
         assert engine.display_mode == CalculationMode.EXACT
 
-    def test_toggle_back_to_estimate(self, engine: CalculationEngine) -> None:
-        engine.toggle_display_mode()  # -> EXACT
-        engine.toggle_display_mode()  # -> ESTIMATE
+    def test_toggle_switches_to_estimate(self, engine: CalculationEngine) -> None:
+        engine.toggle_display_mode()
         assert engine.display_mode == CalculationMode.ESTIMATE
+
+    def test_toggle_back_to_exact(self, engine: CalculationEngine) -> None:
+        engine.toggle_display_mode()  # -> ESTIMATE
+        engine.toggle_display_mode()  # -> EXACT
+        assert engine.display_mode == CalculationMode.EXACT
 
     def test_mode_changed_signal_fires(self, engine: CalculationEngine) -> None:
         signal_received = []
@@ -125,16 +125,16 @@ class TestPayloadAndStorage:
         engine.set_rate(Decimal("100"), TimeUnit.SECOND)
         engine.set_payload_size(Decimal("500"), DataSizeUnit.BYTE)
         gb_per_day = engine.get_data_throughput(TimeUnit.DAY, DataSizeUnit.GIGABYTE)
-        # 4,320,000,000 / 1,000,000,000 = 4.32 GB (estimate mode)
-        assert abs(gb_per_day - Decimal("4.32")) < Decimal("0.01")
+        # 4,320,000,000 / 1,073,741,824 ≈ 4.02 GB (exact mode)
+        assert abs(gb_per_day - Decimal("4.02")) < Decimal("0.01")
 
     def test_best_unit_selection(self, engine: CalculationEngine) -> None:
         engine.set_rate(Decimal("100"), TimeUnit.SECOND)
         engine.set_payload_size(Decimal("500"), DataSizeUnit.BYTE)
         value, unit = engine.get_data_throughput_best_unit(TimeUnit.DAY)
-        # ~4.32 GB/day → best unit should be GB
+        # ~4.02 GB/day (exact) → best unit should be GB
         assert unit == DataSizeUnit.GIGABYTE
-        assert abs(value - Decimal("4.32")) < Decimal("0.01")
+        assert abs(value - Decimal("4.02")) < Decimal("0.01")
 
     def test_reset_clears_payload(self, engine: CalculationEngine) -> None:
         engine.set_payload_size(Decimal("1"), DataSizeUnit.MEGABYTE)
