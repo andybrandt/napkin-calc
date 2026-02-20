@@ -9,6 +9,7 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false  # we want to build all artifacts even if one fails
       matrix:
         include:
           - os: ubuntu-22.04
@@ -33,7 +34,7 @@ jobs:
       - name: Install dependencies
         run: pip install ".[dev]" "nuitka[onefile]"
 
-      # Linux needs platform libraries for Qt and a virtual framebuffer for tests
+      # Linux needs platform libraries for Qt
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
         run: |
@@ -42,15 +43,9 @@ jobs:
             libgl1-mesa-dev \
             libegl1 \
             libxkbcommon0 \
-            libdbus-1-3 \
-            xvfb
+            libdbus-1-3
 
-      - name: Run tests (Linux -- needs virtual display)
-        if: runner.os == 'Linux'
-        run: xvfb-run python -m pytest tests/ -q
-
-      - name: Run tests (Windows / macOS)
-        if: runner.os != 'Linux'
+      - name: Run tests
         env:
           QT_QPA_PLATFORM: offscreen
         run: python -m pytest tests/ -q
