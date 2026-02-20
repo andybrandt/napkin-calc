@@ -47,6 +47,7 @@ class CalculationEngine(QObject):
     rates_changed = Signal()
     storage_changed = Signal()
     mode_changed = Signal()
+    reset_occurred = Signal()
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -162,3 +163,4 @@ class CalculationEngine(QObject):
         self._payload_size_bytes = Decimal("0")
         self.rates_changed.emit()
         self.storage_changed.emit()
+        self.reset_occurred.emit()

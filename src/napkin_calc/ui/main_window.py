@@ -23,6 +23,8 @@ from napkin_calc.core.constants import CalculationMode
 from napkin_calc.core.engine import CalculationEngine
 from napkin_calc.persistence.scenario_manager import ScenarioManager
 from napkin_calc.ui.data_volume_panel import DataVolumePanel
+from napkin_calc.ui.dbp_panel import DBPPanel
+from napkin_calc.ui.reference_panel import ReferencePanel
 from napkin_calc.ui.theme import apply_dark, apply_light, is_dark
 from napkin_calc.ui.traffic_panel import TrafficPanel
 
@@ -234,6 +236,8 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(TrafficPanel(self._engine))
         layout.addWidget(DataVolumePanel(self._engine))
+        layout.addWidget(DBPPanel(self._engine))
+        layout.addWidget(ReferencePanel())
 
         layout.addStretch()
 

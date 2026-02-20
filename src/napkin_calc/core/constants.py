@@ -41,6 +41,15 @@ class DataSizeUnit(Enum):
     EXABYTE = "EB"
 
 
+class BandwidthUnit(Enum):
+    """Supported network bandwidth magnitudes (bits/sec)."""
+    BPS = "bps"
+    KBPS = "Kbps"
+    MBPS = "Mbps"
+    GBPS = "Gbps"
+    TBPS = "Tbps"
+
+
 class CalculationMode(Enum):
     """Controls how values are *displayed* (engine always stores exact)."""
     EXACT = "exact"
@@ -127,3 +136,48 @@ def bytes_per_unit(unit: DataSizeUnit, mode: CalculationMode) -> Decimal:
     }
     mapping = exact_map if mode == CalculationMode.EXACT else estimate_map
     return mapping[unit]
+
+
+def bits_per_bandwidth_unit(unit: BandwidthUnit, mode: CalculationMode) -> Decimal:
+    """Return the number of bits in one *unit* for the given mode."""
+    # Bandwidth is usually base-10 even in exact mode, but some people use base-2.
+    # For napkin math, base-10 (1000) is standard for bits/sec (e.g. 1 Gbps = 10^9 bps).
+    exact_map = {
+        BandwidthUnit.BPS: Decimal("1"),
+        BandwidthUnit.KBPS: BYTES_PER_KB_EXACT,
+        BandwidthUnit.MBPS: BYTES_PER_MB_EXACT,
+        BandwidthUnit.GBPS: BYTES_PER_GB_EXACT,
+        BandwidthUnit.TBPS: BYTES_PER_TB_EXACT,
+    }
+    estimate_map = {
+        BandwidthUnit.BPS: Decimal("1"),
+        BandwidthUnit.KBPS: BYTES_PER_KB_ESTIMATE,
+        BandwidthUnit.MBPS: BYTES_PER_MB_ESTIMATE,
+        BandwidthUnit.GBPS: BYTES_PER_GB_ESTIMATE,
+        BandwidthUnit.TBPS: BYTES_PER_TB_ESTIMATE,
+    }
+    # Often telecom uses estimate map (base 10) for both, but we'll follow mode to be consistent.
+    mapping = exact_map if mode == CalculationMode.EXACT else estimate_map
+    return mapping[unit]
+
+
+# ---------------------------------------------------------------------------
+# Reference Tables
+# ---------------------------------------------------------------------------
+
+REFERENCE_NINES = [
+    {"availability": "99% (Two 9s)", "year": "3.65 days", "month": "7.31 hours", "day": "14.4 mins"},
+    {"availability": "99.9% (Three 9s)", "year": "8.77 hours", "month": "43.8 mins", "day": "1.44 mins"},
+    {"availability": "99.99% (Four 9s)", "year": "52.6 mins", "month": "4.38 mins", "day": "8.64 secs"},
+    {"availability": "99.999% (Five 9s)", "year": "5.26 mins", "month": "26.3 secs", "day": "864 ms"},
+]
+
+REFERENCE_LATENCY = [
+    {"operation": "L1 cache reference", "latency": "0.5 ns", "cost": "Base"},
+    {"operation": "L2 cache reference", "latency": "7 ns", "cost": "14x"},
+    {"operation": "Main memory reference (RAM)", "latency": "100 ns", "cost": "20x L2, 200x L1"},
+    {"operation": "Solid State Drive (SSD)", "latency": "150,000 ns (150 \u03bcs)", "cost": "1,500x RAM"},
+    {"operation": "Disk Drive (HDD)", "latency": "10,000,000 ns (10 ms)", "cost": "66x SSD"},
+    {"operation": "Round trip within datacenter", "latency": "500,000 ns (0.5 ms)", "cost": ""},
+    {"operation": "Network round trip (cross country)", "latency": "150,000,000 ns (150 ms)", "cost": ""},
+]
