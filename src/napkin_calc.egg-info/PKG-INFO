@@ -1,8 +1,80 @@
 Metadata-Version: 2.4
 Name: napkin-calc
 Version: 0.1.0
-Summary: System Design Napkin Calculator – a reactive estimation tool for system design interviews
+Summary: Napkin Calculator – a real-time reactive estimation tool for system design interviews
+License: MIT
+Project-URL: Homepage, https://github.com/andybrandt/napkin-calc
+Project-URL: Issues, https://github.com/andybrandt/napkin-calc/issues
+Keywords: system-design,napkin-math,calculator,estimation,interview,throughput,back-of-the-envelope
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Utilities
+Classifier: Topic :: Software Development
 Requires-Python: >=3.12
+Description-Content-Type: text/markdown
 Requires-Dist: PySide6>=6.6
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
+
+# Napkin Calculator
+
+> Real-time back-of-the-envelope math for system design interviews — without the napkin.
+
+Napkin Calculator is a desktop tool that lets you punch in a traffic rate, payload size,
+or storage volume in **any** unit and instantly see the converted results across every
+time window and data magnitude. No more fumbling with zeros on a whiteboard.
+
+## Why?
+
+During a system design interview you're expected to toss out estimates like
+*"that's roughly 120 requests per second"* or *"about 1.5 PB per year"*.
+Doing that mental arithmetic under pressure is error-prone.
+Napkin Calculator keeps the math honest while you keep talking.
+
+## Quick Start
+
+```bash
+# Create and activate a virtual environment
+python3 -m venv .venv
+source .venv/bin/activate    # Linux / macOS
+# .venv\Scripts\activate     # Windows
+
+# Install (with dev dependencies for testing)
+pip install -e ".[dev]"
+
+# Launch
+napkin-calc
+```
+
+## Features
+
+| Status | Feature | Description |
+|--------|---------|-------------|
+| Done | **Traffic & Throughput Engine** | Enter a rate in any time unit (per sec / min / hr / d / mo / y) — all others update instantly. |
+| Done | **Exact / Estimate toggle** | Switch between precise binary math (1 KB = 1,024 B) and rounded napkin-friendly numbers (1 KB = 1,000 B). |
+| Done | **Scientific notation** | Large values show their power-of-ten alongside the number, e.g. *1,000,000 (10^6)*. |
+| Done | **Data Volume Modeler** | Combine payload size with traffic rate to project storage over days, months, or years. |
+| Done | **Talking Points** | Auto-generated human-friendly summaries you can read aloud mid-interview. |
+| Done | **Scenario Save / Load** | Persist calculator state to `.npkn` files so you can build a library of practice scenarios. |
+| Planned | **Delay-Bandwidth Product** | Calculate buffer sizes from latency and bandwidth inputs. |
+| Planned | **Reference Tables** | Built-in HA "nines" and storage-latency cheat sheets. |
+
+## Running Tests
+
+```bash
+python -m pytest tests/ -v
+```
+
+## Tech Stack
+
+- **Python 3.12+**
+- **PySide6 (Qt 6)** for the desktop UI
+- **Decimal** arithmetic throughout for precision
+
+## License
+
+MIT

@@ -14,6 +14,10 @@ Relationships
 
 Storage accumulation for a given time window is simply
 ``data_throughput_per_second * seconds_in_window``.
+
+The target throughput is stored as a pending constraint.  It is only
+resolved into a payload size or traffic rate once the user provides
+the other missing variable.
 """
 
 from decimal import Decimal
@@ -54,8 +58,12 @@ class CalculationEngine(QObject):
         self._time_converter = TimeUnitConverter()
         self._display_mode = CalculationMode.EXACT
 
-        # Payload size per event (canonical: bytes, exact)
         self._payload_size_bytes = Decimal("0")
+
+        # Pending target throughput constraint (bytes per second, exact).
+        # Non-zero when the user has entered a target but the equation
+        # can't be solved yet because rate or payload is still missing.
+        self._pending_target_bps = Decimal("0")
 
     # -- display mode -------------------------------------------------------
 
@@ -81,10 +89,21 @@ class CalculationEngine(QObject):
     def set_rate(self, value: Decimal, unit: TimeUnit) -> None:
         """Set the traffic rate from a user-edited field.
 
-        Normalises to events/sec internally then notifies listeners.
-        Also triggers storage recalculation since storage depends on rate.
+        If a pending target throughput exists and payload is still zero,
+        resolves the constraint by computing payload size.
         """
         self._time_converter.set_rate(value, unit)
+
+        if (
+            self._pending_target_bps != Decimal("0")
+            and self._payload_size_bytes == Decimal("0")
+            and self._time_converter.events_per_second != Decimal("0")
+        ):
+            self._payload_size_bytes = (
+                self._pending_target_bps / self._time_converter.events_per_second
+            )
+            self._pending_target_bps = Decimal("0")
+
         self.rates_changed.emit()
         self.storage_changed.emit()
 
@@ -98,7 +117,7 @@ class CalculationEngine(QObject):
 
     @property
     def events_per_second_exact(self) -> Decimal:
-        """The canonical internal rate – always exact."""
+        """The canonical internal rate -- always exact."""
         return self._time_converter.events_per_second
 
     # -- payload size -------------------------------------------------------
@@ -109,8 +128,23 @@ class CalculationEngine(QObject):
         return self._payload_size_bytes
 
     def set_payload_size(self, value: Decimal, unit: DataSizeUnit) -> None:
-        """Set the per-event payload size from *value* in *unit*."""
+        """Set the per-event payload size from *value* in *unit*.
+
+        If a pending target throughput exists and rate is still zero,
+        resolves the constraint by computing the traffic rate.
+        """
         self._payload_size_bytes = value * bytes_per_unit(unit, CalculationMode.EXACT)
+
+        if (
+            self._pending_target_bps != Decimal("0")
+            and self._time_converter.events_per_second == Decimal("0")
+            and self._payload_size_bytes != Decimal("0")
+        ):
+            new_rate = self._pending_target_bps / self._payload_size_bytes
+            self._time_converter.set_rate(new_rate, TimeUnit.SECOND)
+            self._pending_target_bps = Decimal("0")
+            self.rates_changed.emit()
+
         self.storage_changed.emit()
 
     def get_payload_size(self, unit: DataSizeUnit) -> Decimal:
@@ -120,12 +154,26 @@ class CalculationEngine(QObject):
             return Decimal("0")
         return self._payload_size_bytes / divisor
 
+    # -- pending target constraint ------------------------------------------
+
+    @property
+    def pending_target_bytes_per_second(self) -> Decimal:
+        """The unresolved target throughput, or zero if fully resolved."""
+        return self._pending_target_bps
+
     # -- data throughput / storage ------------------------------------------
 
     @property
     def data_throughput_bytes_per_second(self) -> Decimal:
-        """Bytes of data generated per second (rate * payload)."""
-        return self._time_converter.events_per_second * self._payload_size_bytes
+        """Bytes of data generated per second (rate * payload).
+
+        If a pending target is set but not yet resolved, returns the
+        target value so the throughput grid shows something useful.
+        """
+        computed = self._time_converter.events_per_second * self._payload_size_bytes
+        if computed == Decimal("0") and self._pending_target_bps != Decimal("0"):
+            return self._pending_target_bps
+        return computed
 
     def get_data_throughput_bytes(self, time_unit: TimeUnit) -> Decimal:
         """Total bytes generated in one *time_unit* (display-mode aware)."""
@@ -155,12 +203,52 @@ class CalculationEngine(QObject):
         best = converter.best_unit(self._display_mode)
         return converter.get_size(best, self._display_mode), best
 
+    def set_target_throughput(
+        self, value: Decimal, size_unit: DataSizeUnit, time_unit: TimeUnit
+    ) -> None:
+        """Set a target throughput constraint.
+
+        If both rate and payload are known (non-zero), holds rate
+        constant and recalculates payload immediately.
+
+        If only rate is known, recalculates payload immediately.
+
+        If only payload is known, recalculates rate immediately.
+
+        If neither is known, stores the target as a pending constraint.
+        It will be resolved when the user later provides a rate or
+        payload size.
+        """
+        target_bytes = value * bytes_per_unit(size_unit, CalculationMode.EXACT)
+        target_bps = target_bytes / seconds_per_unit(time_unit, CalculationMode.EXACT)
+
+        has_rate = self.events_per_second_exact != Decimal("0")
+        has_payload = self._payload_size_bytes != Decimal("0")
+
+        if has_rate:
+            # Solve for payload: payload = target_bps / rate
+            self._payload_size_bytes = target_bps / self.events_per_second_exact
+            self._pending_target_bps = Decimal("0")
+            self.storage_changed.emit()
+        elif has_payload:
+            # Solve for rate: rate = target_bps / payload
+            new_rate = target_bps / self._payload_size_bytes
+            self._time_converter.set_rate(new_rate, TimeUnit.SECOND)
+            self._pending_target_bps = Decimal("0")
+            self.rates_changed.emit()
+            self.storage_changed.emit()
+        else:
+            # Can't solve yet -- store as pending constraint
+            self._pending_target_bps = target_bps
+            self.storage_changed.emit()
+
     # -- reset --------------------------------------------------------------
 
     def reset(self) -> None:
         """Clear all state back to zero."""
         self._time_converter.reset()
         self._payload_size_bytes = Decimal("0")
+        self._pending_target_bps = Decimal("0")
         self.rates_changed.emit()
         self.storage_changed.emit()
         self.reset_occurred.emit()

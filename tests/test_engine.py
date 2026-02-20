@@ -141,3 +141,53 @@ class TestPayloadAndStorage:
         engine.reset()
         assert engine.payload_size_bytes == Decimal("0")
         assert engine.data_throughput_bytes_per_second == Decimal("0")
+
+    def test_target_throughput_updates_payload_when_rate_nonzero(self, engine: CalculationEngine) -> None:
+        engine.set_rate(Decimal("100"), TimeUnit.SECOND)
+        engine.set_target_throughput(Decimal("50"), DataSizeUnit.KILOBYTE, TimeUnit.SECOND)
+        # Payload = (50 * 1024) / 100 = 512 bytes
+        assert engine.payload_size_bytes == Decimal("512")
+        assert engine.events_per_second_exact == Decimal("100")
+
+    def test_target_throughput_updates_rate_when_rate_zero_and_payload_nonzero(self, engine: CalculationEngine) -> None:
+        engine.set_payload_size(Decimal("500"), DataSizeUnit.BYTE)
+        engine.set_target_throughput(Decimal("50"), DataSizeUnit.KILOBYTE, TimeUnit.SECOND)
+        # Rate = (50 * 1024) / 500 = 102.4 events/sec
+        assert engine.events_per_second_exact == Decimal("102.4")
+        assert engine.payload_size_bytes == Decimal("500")
+
+    def test_target_stored_as_pending_when_both_zero(self, engine: CalculationEngine) -> None:
+        """Neither rate nor payload are known -- target is stored, not resolved."""
+        engine.set_target_throughput(Decimal("1"), DataSizeUnit.KILOBYTE, TimeUnit.SECOND)
+        # Nothing solved yet
+        assert engine.events_per_second_exact == Decimal("0")
+        assert engine.payload_size_bytes == Decimal("0")
+        assert engine.pending_target_bytes_per_second == Decimal("1024")
+
+    def test_pending_target_resolves_when_rate_provided(self, engine: CalculationEngine) -> None:
+        """Pending target + user enters rate -> payload is calculated."""
+        engine.set_target_throughput(Decimal("50"), DataSizeUnit.KILOBYTE, TimeUnit.SECOND)
+        assert engine.pending_target_bytes_per_second != Decimal("0")
+        # Now user enters 100 events/sec
+        engine.set_rate(Decimal("100"), TimeUnit.SECOND)
+        # Payload = (50 * 1024) / 100 = 512 bytes
+        assert engine.payload_size_bytes == Decimal("512")
+        assert engine.pending_target_bytes_per_second == Decimal("0")
+
+    def test_pending_target_resolves_when_payload_provided(self, engine: CalculationEngine) -> None:
+        """Pending target + user enters payload -> rate is calculated."""
+        engine.set_target_throughput(Decimal("50"), DataSizeUnit.KILOBYTE, TimeUnit.SECOND)
+        assert engine.pending_target_bytes_per_second != Decimal("0")
+        # Now user enters 500 bytes per event
+        engine.set_payload_size(Decimal("500"), DataSizeUnit.BYTE)
+        # Rate = (50 * 1024) / 500 = 102.4 events/sec
+        assert engine.events_per_second_exact == Decimal("102.4")
+        assert engine.pending_target_bytes_per_second == Decimal("0")
+
+    def test_throughput_grid_shows_target_while_pending(self, engine: CalculationEngine) -> None:
+        """Data throughput should reflect the target even before resolution."""
+        engine.set_target_throughput(Decimal("1"), DataSizeUnit.TERABYTE, TimeUnit.DAY)
+        bytes_per_day = engine.get_data_throughput_bytes(TimeUnit.DAY)
+        # 1 TB (exact) = 1,099,511,627,776 bytes; per day (exact) = 86400 sec
+        # BPS = 1,099,511,627,776 / 86400; bytes_per_day = BPS * 86400 = 1,099,511,627,776
+        assert bytes_per_day == Decimal("1099511627776")

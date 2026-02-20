@@ -81,21 +81,40 @@ class DataVolumePanel(QWidget):
 
         # --- Payload size input row ----------------------------------------
         payload_group = QGroupBox("Data Volume  (per-event payload size)")
-        payload_layout = QHBoxLayout()
+        payload_layout = QGridLayout()
 
-        payload_layout.addWidget(QLabel("Payload size per event:"))
+        payload_layout.addWidget(QLabel("Payload size per event:"), 0, 0)
 
         self._payload_field = ReactiveNumberField(placeholder="e.g. 400")
-        payload_layout.addWidget(self._payload_field)
+        payload_layout.addWidget(self._payload_field, 0, 1)
 
         self._payload_unit_combo = QComboBox()
         for unit in _PAYLOAD_UNITS:
             self._payload_unit_combo.addItem(unit.value, unit)
         # Default to KB
         self._payload_unit_combo.setCurrentIndex(1)
-        payload_layout.addWidget(self._payload_unit_combo)
+        payload_layout.addWidget(self._payload_unit_combo, 0, 2)
 
-        payload_layout.addStretch()
+        # Target Total Volume row
+        payload_layout.addWidget(QLabel("Target Total Volume:"), 1, 0)
+        
+        self._target_field = ReactiveNumberField(placeholder="e.g. 1")
+        payload_layout.addWidget(self._target_field, 1, 1)
+        
+        self._target_size_unit_combo = QComboBox()
+        for unit in DataSizeUnit:
+            self._target_size_unit_combo.addItem(unit.value, unit)
+        self._target_size_unit_combo.setCurrentIndex(4) # TB
+        payload_layout.addWidget(self._target_size_unit_combo, 1, 2)
+        
+        self._target_time_unit_combo = QComboBox()
+        for time_unit in _TIME_UNIT_ORDER:
+            self._target_time_unit_combo.addItem(f"per {time_unit.value}", time_unit)
+        self._target_time_unit_combo.setCurrentIndex(3) # Day
+        payload_layout.addWidget(self._target_time_unit_combo, 1, 3)
+
+        payload_layout.setColumnStretch(4, 1) # Push to left
+
         payload_group.setLayout(payload_layout)
         outer_layout.addWidget(payload_group)
 
@@ -180,6 +199,13 @@ class DataVolumePanel(QWidget):
         self._payload_unit_combo.currentIndexChanged.connect(
             self._on_payload_unit_changed
         )
+        self._target_field.value_changed.connect(self._on_target_edited)
+        self._target_size_unit_combo.currentIndexChanged.connect(
+            self._on_target_unit_changed
+        )
+        self._target_time_unit_combo.currentIndexChanged.connect(
+            self._on_target_unit_changed
+        )
 
         self._engine.storage_changed.connect(self._refresh_all)
         self._engine.mode_changed.connect(self._refresh_all)
@@ -192,11 +218,7 @@ class DataVolumePanel(QWidget):
         self._engine.set_payload_size(value, unit)
 
     def _on_payload_unit_changed(self) -> None:
-        """User changed the payload-size unit dropdown.
-
-        Re-push the current field value with the new unit so the engine
-        recalculates.
-        """
+        """User changed the payload-size unit dropdown."""
         text = self._payload_field.text().strip().replace(",", "")
         if not text:
             return
@@ -207,16 +229,55 @@ class DataVolumePanel(QWidget):
         unit = self._payload_unit_combo.currentData()
         self._engine.set_payload_size(value, unit)
 
+    def _on_target_edited(self, value: Decimal) -> None:
+        """User typed a new target throughput."""
+        if self._is_updating:
+            return
+        size_unit = self._target_size_unit_combo.currentData()
+        time_unit = self._target_time_unit_combo.currentData()
+        self._engine.set_target_throughput(value, size_unit, time_unit)
+
+    def _on_target_unit_changed(self) -> None:
+        """User changed one of the target dropdowns."""
+        text = self._target_field.text().strip().replace(",", "")
+        if not text:
+            return
+        try:
+            value = Decimal(text)
+        except InvalidOperation:
+            return
+        size_unit = self._target_size_unit_combo.currentData()
+        time_unit = self._target_time_unit_combo.currentData()
+        self._engine.set_target_throughput(value, size_unit, time_unit)
+
     # -- display refresh ----------------------------------------------------
 
     def _refresh_all(self) -> None:
         """Refresh the payload field and all throughput rows from engine state."""
         self._is_updating = True
         try:
-            # Clear or restore the payload input field
+            # Update payload input field
             if self._engine.payload_size_bytes == 0:
                 self._payload_field.set_display_value("")
                 self._payload_unit_combo.setCurrentIndex(1)  # default to KB
+            else:
+                unit = self._payload_unit_combo.currentData()
+                exact_value = self._engine.get_payload_size(unit)
+                self._payload_field.set_display_value(
+                    self._formatter.format_input(exact_value)
+                )
+
+            # Update target total volume input field
+            target_time_unit = self._target_time_unit_combo.currentData()
+            target_size_unit = self._target_size_unit_combo.currentData()
+            target_value = self._engine.get_data_throughput(target_time_unit, target_size_unit)
+            if target_value == 0:
+                self._target_field.set_display_value("")
+            else:
+                self._target_field.set_display_value(
+                    self._formatter.format_input(target_value)
+                )
+
             for time_unit in _TIME_UNIT_ORDER:
                 value, best_unit = self._engine.get_data_throughput_best_unit(
                     time_unit
