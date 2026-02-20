@@ -35,9 +35,9 @@ napkin-calc
 | Done | **Traffic & Throughput Engine** | Enter a rate in any time unit (per sec / min / hr / d / mo / y) — all others update instantly. |
 | Done | **Exact / Estimate toggle** | Switch between precise binary math (1 KB = 1,024 B) and rounded napkin-friendly numbers (1 KB = 1,000 B). |
 | Done | **Scientific notation** | Large values show their power-of-ten alongside the number, e.g. *1,000,000 (10^6)*. |
-| Planned | **Data Volume Modeler** | Combine payload size with traffic rate to project storage over days, months, or years. |
-| Planned | **Talking Points** | Auto-generated human-friendly summaries you can read aloud mid-interview. |
-| Planned | **Scenario Save / Load** | Persist calculator state to JSON so you can build a library of practice scenarios. |
+| Done | **Data Volume Modeler** | Combine payload size with traffic rate to project storage over days, months, or years. |
+| Done | **Talking Points** | Auto-generated human-friendly summaries you can read aloud mid-interview. |
+| Done | **Scenario Save / Load** | Persist calculator state to `.npkn` files so you can build a library of practice scenarios. |
 | Planned | **Delay-Bandwidth Product** | Calculate buffer sizes from latency and bandwidth inputs. |
 | Planned | **Reference Tables** | Built-in HA "nines" and storage-latency cheat sheets. |
 

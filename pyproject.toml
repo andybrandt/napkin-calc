@@ -38,8 +38,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/OWNER/napkin-calc"
-Issues = "https://github.com/OWNER/napkin-calc/issues"
+Homepage = "https://github.com/andybrandt/napkin-calc"
+Issues = "https://github.com/andybrandt/napkin-calc/issues"
 
 [project.scripts]
 napkin-calc = "napkin_calc.main:main"

@@ -1,9 +1,13 @@
 """Application main window – single scrollable layout with all panels."""
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QFileDialog,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -14,8 +18,11 @@ from PySide6.QtWidgets import (
 
 from napkin_calc.core.constants import CalculationMode
 from napkin_calc.core.engine import CalculationEngine
+from napkin_calc.persistence.scenario_manager import ScenarioManager
 from napkin_calc.ui.data_volume_panel import DataVolumePanel
 from napkin_calc.ui.traffic_panel import TrafficPanel
+
+_FILE_FILTER = "Napkin Scenarios (*.npkn)"
 
 
 class MainWindow(QMainWindow):
@@ -35,6 +42,8 @@ class MainWindow(QMainWindow):
         self.resize(*self._DEFAULT_SIZE)
 
         self._engine = CalculationEngine(parent=self)
+        self._scenario_manager = ScenarioManager(self._engine)
+        self._last_save_dir = str(Path.home())
 
         self._build_toolbar()
         self._build_central_area()
@@ -47,6 +56,7 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
+        # Exact / Estimate toggle
         self._mode_button = QPushButton()
         self._mode_button.setCheckable(True)
         self._mode_button.setMinimumWidth(160)
@@ -59,13 +69,27 @@ class MainWindow(QMainWindow):
         self._mode_label.setStyleSheet("padding-left: 8px;")
         toolbar.addWidget(self._mode_label)
 
+        # Spacer
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         toolbar.addWidget(spacer)
 
+        # Save / Load / Reset
+        save_button = QPushButton("Save Scenario")
+        save_button.clicked.connect(self._on_save)
+        toolbar.addWidget(save_button)
+
+        load_button = QPushButton("Load Scenario")
+        load_button.clicked.connect(self._on_load)
+        toolbar.addWidget(load_button)
+
+        toolbar.addSeparator()
+
         reset_button = QPushButton("Reset All")
         reset_button.clicked.connect(self._on_reset)
         toolbar.addWidget(reset_button)
+
+    # -- mode toggle --------------------------------------------------------
 
     def _on_mode_toggled(self) -> None:
         self._engine.toggle_display_mode()
@@ -85,10 +109,59 @@ class MainWindow(QMainWindow):
                 "1 KB = 1,000 B  ·  1 month = 30 days  ·  1 year = 365 days"
             )
 
+    # -- save / load --------------------------------------------------------
+
+    def _on_save(self) -> None:
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Scenario",
+            self._last_save_dir,
+            _FILE_FILTER,
+        )
+        if not file_path:
+            return
+
+        path = Path(file_path)
+        if path.suffix != ".npkn":
+            path = path.with_suffix(".npkn")
+
+        self._last_save_dir = str(path.parent)
+
+        try:
+            self._scenario_manager.save(path, scenario_name=path.stem)
+        except OSError as exc:
+            QMessageBox.warning(self, "Save Failed", str(exc))
+
+    def _on_load(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load Scenario",
+            self._last_save_dir,
+            _FILE_FILTER,
+        )
+        if not file_path:
+            return
+
+        path = Path(file_path)
+        self._last_save_dir = str(path.parent)
+
+        try:
+            scenario_name = self._scenario_manager.load(path)
+            if scenario_name:
+                self.setWindowTitle(
+                    f"{self._WINDOW_TITLE}  —  {scenario_name}"
+                )
+            self._update_mode_indicator()
+        except (OSError, KeyError, ValueError) as exc:
+            QMessageBox.warning(self, "Load Failed", str(exc))
+
+    # -- reset --------------------------------------------------------------
+
     def _on_reset(self) -> None:
         self._engine.reset()
+        self.setWindowTitle(self._WINDOW_TITLE)
 
-    # -- central area (scrollable stack of all panels) ----------------------
+    # -- central area -------------------------------------------------------
 
     def _build_central_area(self) -> None:
         container = QWidget()
