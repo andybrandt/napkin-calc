@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QFileDialog,
+    QGridLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -230,18 +231,56 @@ class MainWindow(QMainWindow):
     # -- central area -------------------------------------------------------
 
     def _build_central_area(self) -> None:
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setSpacing(12)
+        self._container = QWidget()
+        self._grid = QGridLayout(self._container)
+        self._grid.setSpacing(12)
 
-        layout.addWidget(TrafficPanel(self._engine))
-        layout.addWidget(DataVolumePanel(self._engine))
-        layout.addWidget(DBPPanel(self._engine))
-        layout.addWidget(ReferencePanel())
+        # Left Column (Core calculators)
+        self._left_col = QWidget()
+        left_layout = QVBoxLayout(self._left_col)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.addWidget(TrafficPanel(self._engine))
+        left_layout.addWidget(DataVolumePanel(self._engine))
+        left_layout.addStretch()
 
-        layout.addStretch()
+        # Right Column (Utilities and References)
+        self._right_col = QWidget()
+        right_layout = QVBoxLayout(self._right_col)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.addWidget(DBPPanel(self._engine))
+        right_layout.addWidget(ReferencePanel())
+        right_layout.addStretch()
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(container)
-        self.setCentralWidget(scroll)
+        # Initial placement
+        self._grid.addWidget(self._left_col, 0, 0)
+        self._grid.addWidget(self._right_col, 0, 1)
+        self._is_two_col = True
+
+        # Stretch so panels don't expand infinitely if window is huge
+        self._grid.setColumnStretch(2, 1)
+
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setWidget(self._container)
+        self.setCentralWidget(self._scroll)
+
+    def resizeEvent(self, event) -> None:
+        """Dynamically switch between 1-column and 2-column layouts based on window width."""
+        super().resizeEvent(event)
+
+        left_width = self._left_col.minimumSizeHint().width()
+        right_width = self._right_col.minimumSizeHint().width()
+        margins = self._grid.contentsMargins()
+        spacing = self._grid.spacing()
+
+        # Account for scrollbar and border padding (~40px)
+        required_width = left_width + right_width + spacing + margins.left() + margins.right() + 40
+
+        if self.width() >= required_width and not self._is_two_col:
+            self._grid.removeWidget(self._right_col)
+            self._grid.addWidget(self._right_col, 0, 1)
+            self._is_two_col = True
+        elif self.width() < required_width and self._is_two_col:
+            self._grid.removeWidget(self._right_col)
+            self._grid.addWidget(self._right_col, 1, 0)
+            self._is_two_col = False
