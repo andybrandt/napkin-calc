@@ -187,12 +187,14 @@ class TestPayloadAndStorage:
         assert bytes_per_day == Decimal("1099511627776")
 
     def test_volume_locked_edit_rate_recalculates_payload(self, engine: CalculationEngine) -> None:
-        """Lock=Volume, set all three, then change rate -> payload adjusts."""
+        """Lock=Volume explicitly, set all three, then change rate -> payload adjusts."""
         engine.set_rate(Decimal("100"), TimeUnit.SECOND)
         engine.set_payload_size(Decimal("500"), DataSizeUnit.BYTE)
         # Store the volume: 100 * 500 = 50000 bps
         engine.set_target_throughput(Decimal("50000"), DataSizeUnit.BYTE, TimeUnit.SECOND)
-        # Now change rate to 200 with Volume locked
+        # Explicitly lock Volume so changing rate recalculates payload
+        engine.set_locked_variable(LockedVariable.VOLUME)
+        # Now change rate to 200
         engine.set_rate(Decimal("200"), TimeUnit.SECOND)
         # Payload should adjust: 50000 / 200 = 250
         assert engine.payload_size_bytes == Decimal("250")

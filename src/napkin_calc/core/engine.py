@@ -8,13 +8,16 @@ Design invariant: the engine always stores *exact* values.  The
 ``CalculationMode`` passed to accessor helpers only affects how the
 result is converted for display.
 
-Relationships
--------------
+Lock behaviour
+--------------
 ``Volume = Rate * Payload``
 
-The user can lock one of the three variables (Rate, Payload, Volume).
-When any other variable is edited, the locked variable stays constant
-and the third is recalculated.
+On startup no variable is locked (LockedVariable.NONE).  The first
+variable the user types into auto-locks -- this is reflected in the
+UI padlock buttons.  After that, the locked variable is held constant
+and the third is recalculated whenever either of the other two change.
+The user can override the lock at any time by clicking a different padlock.
+Reset clears the lock back to NONE.
 """
 
 from decimal import Decimal
@@ -47,7 +50,7 @@ class CalculationEngine(QObject):
         self._time_converter = TimeUnitConverter()
         self._display_mode = CalculationMode.EXACT
         self._payload_size_bytes = Decimal("0")
-        self._locked = LockedVariable.VOLUME
+        self._locked = LockedVariable.NONE
 
         # Stored target throughput in bytes/sec (exact).
         # Used when Volume is an independent input rather than derived.
@@ -79,7 +82,14 @@ class CalculationEngine(QObject):
         return self._locked
 
     def set_locked_variable(self, var: LockedVariable) -> None:
+        """Set the locked variable explicitly (user clicked a padlock)."""
         if var != self._locked:
+            self._locked = var
+            self.lock_changed.emit()
+
+    def _auto_lock(self, var: LockedVariable) -> None:
+        """Auto-lock *var* if nothing is locked yet."""
+        if self._locked == LockedVariable.NONE:
             self._locked = var
             self.lock_changed.emit()
 
@@ -88,11 +98,14 @@ class CalculationEngine(QObject):
     def set_rate(self, value: Decimal, unit: TimeUnit) -> None:
         """User edited the traffic rate.
 
+        Auto-locks Rate on first non-zero input if nothing is locked yet.
         Resolves payload from the stored target when appropriate:
         - Volume is locked and target is set, OR
         - Payload is still zero and a stored target can now be resolved.
         """
         self._time_converter.set_rate(value, unit)
+        if value != Decimal("0"):
+            self._auto_lock(LockedVariable.RATE)
 
         should_solve_payload = (
             self._target_volume_bps != Decimal("0")
@@ -129,11 +142,14 @@ class CalculationEngine(QObject):
     def set_payload_size(self, value: Decimal, unit: DataSizeUnit) -> None:
         """User edited the payload size.
 
+        Auto-locks Payload on first non-zero input if nothing is locked yet.
         Resolves rate from the stored target when appropriate:
         - Volume is locked and target is set, OR
         - Rate is still zero and a stored target can now be resolved.
         """
         self._payload_size_bytes = value * bytes_per_unit(unit, CalculationMode.EXACT)
+        if self._payload_size_bytes != Decimal("0"):
+            self._auto_lock(LockedVariable.PAYLOAD)
 
         should_solve_rate = (
             self._target_volume_bps != Decimal("0")
@@ -208,6 +224,8 @@ class CalculationEngine(QObject):
         target_bytes = value * bytes_per_unit(size_unit, CalculationMode.EXACT)
         target_bps = target_bytes / seconds_per_unit(time_unit, CalculationMode.EXACT)
         self._target_volume_bps = target_bps
+        if target_bps != Decimal("0"):
+            self._auto_lock(LockedVariable.VOLUME)
 
         has_rate = self.events_per_second_exact != Decimal("0")
         has_payload = self._payload_size_bytes != Decimal("0")
@@ -247,10 +265,12 @@ class CalculationEngine(QObject):
     # -- reset --------------------------------------------------------------
 
     def reset(self) -> None:
-        """Clear all state back to zero."""
+        """Clear all state back to zero and remove any lock."""
         self._time_converter.reset()
         self._payload_size_bytes = Decimal("0")
         self._target_volume_bps = Decimal("0")
+        self._locked = LockedVariable.NONE
         self.rates_changed.emit()
         self.storage_changed.emit()
+        self.lock_changed.emit()
         self.reset_occurred.emit()

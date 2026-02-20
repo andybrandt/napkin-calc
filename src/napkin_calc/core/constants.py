@@ -51,7 +51,12 @@ class BandwidthUnit(Enum):
 
 
 class LockedVariable(Enum):
-    """Which variable is held constant when the other two change."""
+    """Which variable is held constant when the other two change.
+
+    NONE means nothing is locked yet; the first variable the user edits
+    will auto-lock automatically.
+    """
+    NONE = "none"
     RATE = "rate"
     PAYLOAD = "payload"
     VOLUME = "volume"
