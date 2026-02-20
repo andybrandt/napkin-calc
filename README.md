@@ -13,7 +13,44 @@ During a system design interview you're expected to toss out estimates like
 Doing that mental arithmetic under pressure is error-prone.
 Napkin Calculator keeps the math honest while you keep talking.
 
-## Quick Start
+## Download
+
+Pre-built executables for all platforms are available on the
+[Releases](https://github.com/andybrandt/napkin-calc/releases/latest) page —
+no Python installation required.
+
+| Platform | File |
+|----------|------|
+| Linux (x86-64) | `napkin-calc` |
+| Windows | `napkin-calc.exe` |
+| macOS (Apple Silicon) | `napkin-calc-macos` |
+
+> **macOS note:** The binary is not code-signed. On first run, right-click the file
+> and choose **Open** to bypass the Gatekeeper warning.
+
+> **Linux note:** Mark the binary as executable before running:
+> ```bash
+> chmod +x napkin-calc
+> ./napkin-calc
+> ```
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **Traffic & Throughput Engine** | Enter a rate in any time unit (per sec / min / hr / d / mo / y) — all others update instantly. |
+| **Data Volume Modeler** | Combine payload size with traffic rate to project storage over days, months, or years. |
+| **Bidirectional Calculation** | Lock any one of Rate, Payload, or Total Volume — the other two recalculate automatically. |
+| **Delay-Bandwidth Product** | Calculate network buffer sizes from bandwidth and round-trip time. |
+| **Reference Tables** | Built-in HA "nines" availability targets and storage/memory latency cheat sheet. |
+| **Talking Points** | Auto-generated human-friendly summaries (*"~3.6 billion per year"*) you can read aloud mid-interview. |
+| **Exact / Estimate toggle** | Switch between precise binary math (1 KB = 1,024 B) and rounded napkin-friendly numbers (1 KB = 1,000 B). |
+| **Scientific notation** | Large values show their power-of-ten alongside the number, e.g. *1,000,000 (10^6)*. |
+| **Scenario Save / Load** | Persist the full calculator state to a `.npkn` file and reload it later. |
+| **Light / Dark theme** | Toggle between themes at any time. |
+| **Responsive layout** | Widens into a two-column layout when the window is large enough. |
+
+## Running from Source
 
 ```bash
 # Create and activate a virtual environment
@@ -28,30 +65,31 @@ pip install -e ".[dev]"
 napkin-calc
 ```
 
-## Features
-
-| Status | Feature | Description |
-|--------|---------|-------------|
-| Done | **Traffic & Throughput Engine** | Enter a rate in any time unit (per sec / min / hr / d / mo / y) — all others update instantly. |
-| Done | **Exact / Estimate toggle** | Switch between precise binary math (1 KB = 1,024 B) and rounded napkin-friendly numbers (1 KB = 1,000 B). |
-| Done | **Scientific notation** | Large values show their power-of-ten alongside the number, e.g. *1,000,000 (10^6)*. |
-| Done | **Data Volume Modeler** | Combine payload size with traffic rate to project storage over days, months, or years. |
-| Done | **Talking Points** | Auto-generated human-friendly summaries you can read aloud mid-interview. |
-| Done | **Scenario Save / Load** | Persist calculator state to `.npkn` files so you can build a library of practice scenarios. |
-| Planned | **Delay-Bandwidth Product** | Calculate buffer sizes from latency and bandwidth inputs. |
-| Planned | **Reference Tables** | Built-in HA "nines" and storage-latency cheat sheets. |
-
 ## Running Tests
 
 ```bash
 python -m pytest tests/ -v
 ```
 
+## Building a Single Executable
+
+```bash
+pip install "nuitka[onefile]"
+python -m nuitka \
+    --standalone \
+    --onefile \
+    --enable-plugin=pyside6 \
+    --include-data-files=src/napkin_calc/resources/icon.png=napkin_calc/resources/icon.png \
+    --output-filename=napkin-calc \
+    src/napkin_calc/main.py
+```
+
 ## Tech Stack
 
 - **Python 3.12+**
 - **PySide6 (Qt 6)** for the desktop UI
-- **Decimal** arithmetic throughout for precision
+- **Decimal** arithmetic throughout — no floating-point drift on large numbers
+- **Nuitka** for single-file executable packaging
 
 ## License
 
