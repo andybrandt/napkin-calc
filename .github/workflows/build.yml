@@ -59,6 +59,15 @@ jobs:
           --include-data-files=src/napkin_calc/resources/icon.png=napkin_calc/resources/icon.png
           --output-filename=${{ matrix.output_name }}
           --assume-yes-for-downloads
+          --windows-console-mode=disable
+          --windows-icon-from-ico=src/napkin_calc/resources/icon.png
+          --windows-company-name=andybrandt
+          --windows-product-name="Napkin Calculator"
+          --windows-file-version=0.1.0
+          --windows-product-version=0.1.0
+          --windows-file-description="System design napkin calculator"
+          --macos-app-icon=src/napkin_calc/resources/icon.png
+          --macos-app-name="Napkin Calculator"
           src/napkin_calc/main.py
 
       - name: Upload artifact

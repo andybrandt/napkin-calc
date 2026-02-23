@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "napkin-calc"
-version = "0.1.1"
+version = "0.1.2"
 description = "Napkin Calculator – a real-time reactive estimation tool for system design interviews"
 readme = "README.md"
 requires-python = ">=3.12"

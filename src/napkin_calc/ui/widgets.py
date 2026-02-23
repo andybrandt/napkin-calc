@@ -18,7 +18,7 @@ class DecimalValidator(QValidator):
     """Accept integers, decimals, and simple scientific notation (e.g. 1e6)."""
 
     def validate(self, text: str, pos: int) -> tuple:  # type: ignore[override]
-        stripped = text.strip()
+        stripped = text.strip().replace(",", "")
         if stripped == "" or stripped == "-":
             return (QValidator.State.Intermediate, text, pos)
         try:
