@@ -24,12 +24,12 @@ jobs:
               --windows-icon-from-ico=src/napkin_calc/resources/icon.ico
               --windows-company-name=andybrandt
               --windows-product-name="Napkin Calculator"
-              --windows-file-version=0.1.0
-              --windows-product-version=0.1.0
+              --windows-file-version=0.1.2
+              --windows-product-version=0.1.2
               --windows-file-description="System design napkin calculator"
           - os: macos-latest
             artifact_name: napkin-calc-macos
-            output_name: "Napkin Calculator.app"
+            output_name: napkin-calc.app
             nuitka_extra: >-
               --macos-create-app-bundle
               --macos-app-icon=src/napkin_calc/resources/icon.icns
@@ -78,7 +78,7 @@ jobs:
       # macOS .app bundle is a directory — zip it for upload
       - name: Package macOS app
         if: runner.os == 'macOS'
-        run: zip -r napkin-calc-macos.zip "Napkin Calculator.app"
+        run: zip -r napkin-calc-macos.zip napkin-calc.app
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
