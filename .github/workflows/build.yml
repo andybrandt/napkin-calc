@@ -15,12 +15,25 @@ jobs:
           - os: ubuntu-22.04
             artifact_name: napkin-calc-linux
             output_name: napkin-calc
+            nuitka_extra: ""
           - os: windows-latest
             artifact_name: napkin-calc-windows
             output_name: napkin-calc.exe
+            nuitka_extra: >-
+              --windows-console-mode=disable
+              --windows-icon-from-ico=src/napkin_calc/resources/icon.ico
+              --windows-company-name=andybrandt
+              --windows-product-name="Napkin Calculator"
+              --windows-file-version=0.1.0
+              --windows-product-version=0.1.0
+              --windows-file-description="System design napkin calculator"
           - os: macos-latest
             artifact_name: napkin-calc-macos
-            output_name: napkin-calc-macos
+            output_name: "Napkin Calculator.app"
+            nuitka_extra: >-
+              --macos-create-app-bundle
+              --macos-app-icon=src/napkin_calc/resources/icon.icns
+              --macos-app-name="Napkin Calculator"
 
     runs-on: ${{ matrix.os }}
 
@@ -59,22 +72,19 @@ jobs:
           --include-data-files=src/napkin_calc/resources/icon.png=napkin_calc/resources/icon.png
           --output-filename=${{ matrix.output_name }}
           --assume-yes-for-downloads
-          --windows-console-mode=disable
-          --windows-icon-from-ico=src/napkin_calc/resources/icon.png
-          --windows-company-name=andybrandt
-          --windows-product-name="Napkin Calculator"
-          --windows-file-version=0.1.0
-          --windows-product-version=0.1.0
-          --windows-file-description="System design napkin calculator"
-          --macos-app-icon=src/napkin_calc/resources/icon.png
-          --macos-app-name="Napkin Calculator"
+          ${{ matrix.nuitka_extra }}
           src/napkin_calc/main.py
+
+      # macOS .app bundle is a directory — zip it for upload
+      - name: Package macOS app
+        if: runner.os == 'macOS'
+        run: zip -r napkin-calc-macos.zip "Napkin Calculator.app"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.output_name }}
+          path: ${{ runner.os == 'macOS' && 'napkin-calc-macos.zip' || matrix.output_name }}
 
   release:
     needs: build
@@ -93,5 +103,5 @@ jobs:
           files: |
             napkin-calc-linux/napkin-calc
             napkin-calc-windows/napkin-calc.exe
-            napkin-calc-macos/napkin-calc-macos
+            napkin-calc-macos/napkin-calc-macos.zip
           generate_release_notes: true
