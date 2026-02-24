@@ -52,11 +52,29 @@ no Python installation required.
 
 ## Running from Source
 
+### Windows (PowerShell)
+
+A convenience script is included that handles first-time setup automatically:
+
+```powershell
+.\run.ps1
+```
+
+On the first run it creates a `.venv` virtual environment and installs all dependencies.
+Subsequent runs just launch the app directly.
+
+If PowerShell blocks the script due to execution policy, run this once:
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+### Linux / macOS
+
 ```bash
 # Create and activate a virtual environment
 python3 -m venv .venv
-source .venv/bin/activate    # Linux / macOS
-# .venv\Scripts\activate     # Windows
+source .venv/bin/activate
 
 # Install (with dev dependencies for testing)
 pip install -e ".[dev]"
